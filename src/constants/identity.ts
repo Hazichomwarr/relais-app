@@ -1,0 +1,17 @@
+export const USER_ROLES = {
+  CUSTOMER: 'CUSTOMER',
+  RELAIS: 'RELAIS',
+  ADMIN: 'ADMIN',
+} as const;
+
+export const USER_ACCOUNT_STATUSES = {
+  ACTIVE: 'ACTIVE',
+  SUSPENDED: 'SUSPENDED',
+  DEACTIVATED: 'DEACTIVATED',
+} as const;
+
+export const RELAIS_ELIGIBILITY_STATUSES = {
+  APPROVED: 'APPROVED',
+  UNDER_REVIEW: 'UNDER_REVIEW',
+  REVOKED: 'REVOKED',
+} as const;
