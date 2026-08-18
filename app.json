@@ -1,11 +1,10 @@
 {
   "expo": {
-    "name": "relais-app",
+    "name": "RELAIS",
     "slug": "relais-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "relaisapp",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
