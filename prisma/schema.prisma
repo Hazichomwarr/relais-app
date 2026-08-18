@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  RELAIS
+  ADMIN
+}
+
+enum UserAccountStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum RelaisEligibility {
+  APPROVED
+  UNDER_REVIEW
+  REVOKED
+}
+
+enum RelaisAvailability {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+enum ConnectionLifecycle {
+  MATCHING
+  CONNECTED
+  ENDED
+}
+
+enum ConnectionTerminalOutcome {
+  MISSION_CREATED
+  CUSTOMER_CANCELLED
+  DECLINED
+  NO_RELAIS_AVAILABLE
+  ABANDONED
+}
+
+model User {
+  id                   String                 @id @default(cuid())
+  role                 UserRole
+  accountStatus        UserAccountStatus      @default(ACTIVE)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  customerProfile      CustomerProfile?
+  relaisProfile        RelaisProfile?
+  customerConnections  Connection[]           @relation("CustomerConnections")
+  relaisAssignments    ConnectionAssignment[] @relation("RelaisAssignments")
+  initiatedAssignments ConnectionAssignment[] @relation("AssignmentInitiator")
+
+  @@index([role])
+  @@index([accountStatus])
+}
+
+model CustomerProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  preferredLanguage String?  @db.VarChar(16)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+}
+
+model RelaisProfile {
+  id                    String             @id @default(cuid())
+  userId                String             @unique
+  eligibility           RelaisEligibility  @default(UNDER_REVIEW)
+  availability          RelaisAvailability @default(UNAVAILABLE)
+  availabilityChangedAt DateTime           @default(now())
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([eligibility, availability])
+}
+
+model Connection {
+  id                String                     @id @default(cuid())
+  // The FK guarantees an identity; service authorization enforces CUSTOMER role.
+  customerId        String
+  lifecycle         ConnectionLifecycle        @default(MATCHING)
+  terminalOutcome   ConnectionTerminalOutcome?
+  preferredLanguage String?                    @db.VarChar(16)
+  createdAt         DateTime                   @default(now())
+  connectedAt       DateTime?
+  endedAt           DateTime?
+  updatedAt         DateTime                   @updatedAt
+  customer          User                       @relation("CustomerConnections", fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignments       ConnectionAssignment[]
+  conversation      Conversation?
+
+  @@index([customerId, lifecycle])
+}
+
+model ConnectionAssignment {
+  id               String     @id @default(cuid())
+  connectionId     String
+  // The FK references User; service authorization enforces active approved RELAIS.
+  relaisUserId     String
+  assignedAt       DateTime   @default(now())
+  endedAt          DateTime?
+  reason           String?    @db.Text
+  // Nullable to support future system-initiated assignments without a fake user.
+  assignedByUserId String?
+  connection       Connection @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  relaisUser       User       @relation("RelaisAssignments", fields: [relaisUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignedByUser   User?      @relation("AssignmentInitiator", fields: [assignedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([connectionId, assignedAt])
+  @@index([relaisUserId, assignedAt])
+  @@index([assignedByUserId])
+}
+
+model Conversation {
+  id           String     @id @default(cuid())
+  connectionId String     @unique
+  createdAt    DateTime   @default(now())
+  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+}
