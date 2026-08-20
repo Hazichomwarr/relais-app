@@ -1,0 +1,2 @@
+ALTER TYPE "ConnectionTerminalOutcome"
+ADD VALUE 'DECLINED_BY_RELAIS';
