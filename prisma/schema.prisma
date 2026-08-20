@@ -80,8 +80,20 @@ model RelaisProfile {
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   user                  User               @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  supportedLanguages    RelaisLanguage[]
 
   @@index([eligibility, availability])
+}
+
+model RelaisLanguage {
+  id              String        @id @default(cuid())
+  relaisProfileId String
+  languageCode    String        @db.VarChar(16)
+  createdAt       DateTime      @default(now())
+  relaisProfile   RelaisProfile @relation(fields: [relaisProfileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([relaisProfileId, languageCode])
+  @@index([languageCode])
 }
 
 model Connection {
