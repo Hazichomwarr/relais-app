@@ -1,4 +1,5 @@
 import {
+  RELAIS_AVAILABILITY_STATUSES,
   RELAIS_ELIGIBILITY_STATUSES,
   USER_ACCOUNT_STATUSES,
   USER_ROLES,
@@ -11,6 +12,9 @@ export type UserAccountStatus =
 
 export type RelaisEligibility =
   (typeof RELAIS_ELIGIBILITY_STATUSES)[keyof typeof RELAIS_ELIGIBILITY_STATUSES];
+
+export type RelaisAvailability =
+  (typeof RELAIS_AVAILABILITY_STATUSES)[keyof typeof RELAIS_AVAILABILITY_STATUSES];
 
 export type AuthorizationSubject = {
   userId: string;
