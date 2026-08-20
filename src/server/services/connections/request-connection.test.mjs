@@ -9,7 +9,7 @@ if (!process.env.DATABASE_URL) {
   const [{ PrismaPg }, { PrismaClient }, { ConnectionRequestError, requestConnection }] =
     await Promise.all([
       import('@prisma/adapter-pg'),
-      import('../../../../generated/prisma/client.ts'),
+      import('@prisma/client'),
       import('./request-connection.ts'),
     ]);
 

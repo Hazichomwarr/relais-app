@@ -20,6 +20,7 @@
     "expo-symbols": "~57.0.2",
     "expo-system-ui": "~57.0.2",
     "expo-web-browser": "~57.0.2",
+    "libphonenumber-js": "^1.13.10",
     "pg": "^8.23.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -46,7 +47,7 @@
     "web": "expo start --web",
     "lint": "expo lint app",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/authorization.test.mjs src/server/services/connections/request-connection.test.mjs",
+    "test": "node --experimental-strip-types --test src/lib/authorization.test.mjs src/server/services/connections/request-connection.test.mjs src/server/services/customers/provision-customer.test.mjs",
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate"

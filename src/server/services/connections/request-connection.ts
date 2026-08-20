@@ -1,7 +1,7 @@
 import { prisma } from '../../db/client.ts';
 import { canOperateAsCustomer } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
-import { PrismaClient } from '../../../../generated/prisma/client.ts';
+import { PrismaClient } from '@prisma/client';
 
 const MAX_REQUEST_KEY_LENGTH = 128;
 const MAX_LANGUAGE_LENGTH = 16;
