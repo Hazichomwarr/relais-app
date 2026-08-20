@@ -3,7 +3,7 @@
  * Do not import this module from Expo routes or mobile UI code.
  */
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../../../generated/prisma/client';
+import { PrismaClient } from '../../../generated/prisma/client.ts';
 
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;

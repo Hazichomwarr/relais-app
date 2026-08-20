@@ -46,7 +46,7 @@
     "web": "expo start --web",
     "lint": "expo lint app",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/authorization.test.mjs",
+    "test": "node --experimental-strip-types --test src/lib/authorization.test.mjs src/server/services/connections/request-connection.test.mjs",
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate"
