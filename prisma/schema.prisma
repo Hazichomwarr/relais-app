@@ -297,6 +297,7 @@ model Mission {
   lifecycle            MissionLifecycle    @default(PENDING_EXECUTION)
   acceptedQuickOfferId String?             @unique
   createdAt            DateTime            @default(now())
+  executionStartedAt   DateTime?
   completedAt          DateTime?
   cancelledAt          DateTime?
   failedAt             DateTime?

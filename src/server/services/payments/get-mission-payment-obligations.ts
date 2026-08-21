@@ -10,6 +10,12 @@ export type GetMissionPaymentObligationsInput = {
 };
 
 export type GetMissionPaymentObligationsResult = {
+  mission: {
+    id: string;
+    depth: 'QUICK' | 'MANAGED';
+    lifecycle: 'PENDING_EXECUTION' | 'ACTIVE' | 'COMPLETION_PENDING' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
+    executionStartedAt: Date | null;
+  };
   obligations: Array<PaymentObligationSummary & { attempts: Array<{
     id: string;
     paymentObligationId: string;
@@ -55,6 +61,9 @@ export async function getMissionPaymentObligations(
       where: { id: input.missionId },
       select: {
         id: true,
+        depth: true,
+        lifecycle: true,
+        executionStartedAt: true,
         connection: { select: { customerId: true } },
         assignments: {
           where: { relaisUserId: input.actor.userId, endedAt: null },
@@ -121,6 +130,14 @@ export async function getMissionPaymentObligations(
         },
       },
     });
-    return { obligations };
+    return {
+      mission: {
+        id: mission.id,
+        depth: mission.depth,
+        lifecycle: mission.lifecycle,
+        executionStartedAt: mission.executionStartedAt,
+      },
+      obligations,
+    };
   }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
 }
