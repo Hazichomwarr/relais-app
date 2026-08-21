@@ -2,6 +2,10 @@ import { PrismaClient } from '@prisma/client';
 import { canOperateAsCustomer } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
+import {
+  createQuickPaymentObligationInTransaction,
+  type PaymentObligationSummary,
+} from '../payments/create-quick-payment-obligation.ts';
 
 export type AcceptQuickOfferInput = {
   actor: AuthorizationSubject;
@@ -30,6 +34,7 @@ export type AcceptQuickOfferResult = {
     acceptedAt: Date;
   };
   mission: AcceptedMission;
+  paymentObligation: PaymentObligationSummary;
 };
 
 export type AcceptQuickOfferErrorCode =
@@ -174,10 +179,12 @@ async function acceptOnce(
       if (!existingMission || existingMission.acceptedQuickOfferId !== offer.id || !offer.acceptedAt) {
         throw new AcceptQuickOfferError('CONNECTION_INTEGRITY_ERROR', 'The accepted QuickOffer has no matching Mission.');
       }
+      const payment = await createQuickPaymentObligationInTransaction(transaction, existingMission.id);
       return {
         status: 'EXISTING',
         offer: { ...offer, status: 'ACCEPTED', acceptedAt: offer.acceptedAt },
         mission: missionResult(existingMission),
+        paymentObligation: payment.obligation,
       };
     }
     if (offer.status !== 'PENDING') {
@@ -240,6 +247,7 @@ async function acceptOnce(
       },
       select: { id: true, connectionId: true, depth: true, urgency: true, lifecycle: true, acceptedQuickOfferId: true, createdAt: true },
     });
+    const payment = await createQuickPaymentObligationInTransaction(transaction, mission.id);
     await transaction.connectionAssignment.updateMany({
       where: { connectionId: offer.connectionId, endedAt: null },
       data: { endedAt: acceptedAt },
@@ -253,6 +261,7 @@ async function acceptOnce(
       status: 'ACCEPTED',
       offer: { ...offer, status: 'ACCEPTED', acceptedAt },
       mission: missionResult(mission),
+      paymentObligation: payment.obligation,
     };
   }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
 }

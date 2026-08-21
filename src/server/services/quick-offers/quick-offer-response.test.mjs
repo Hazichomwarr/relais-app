@@ -236,6 +236,7 @@ if (!process.env.DATABASE_URL) {
       await prisma.voiceMessageAsset.deleteMany({ where: { message: { conversation: { connectionId: { in: connectionIds } } } } });
       await prisma.message.deleteMany({ where: { conversation: { connectionId: { in: connectionIds } } } });
       await prisma.missionAssignment.deleteMany({ where: { mission: { connectionId: { in: connectionIds } } } });
+      await prisma.paymentObligation.deleteMany({ where: { mission: { connectionId: { in: connectionIds } } } });
       await prisma.mission.deleteMany({ where: { connectionId: { in: connectionIds } } });
       await prisma.quickOffer.deleteMany({ where: { connectionId: { in: connectionIds } } });
       await prisma.connectionAssignment.deleteMany({ where: { connectionId: { in: connectionIds } } });
