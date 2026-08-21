@@ -64,6 +64,8 @@ model User {
   relaisAssignments    ConnectionAssignment[] @relation("RelaisAssignments")
   initiatedAssignments ConnectionAssignment[] @relation("AssignmentInitiator")
   sentMessages         Message[]              @relation("MessageSender")
+  initiatedCallActions CallAction[]           @relation("CallActionInitiator")
+  receivedCallActions  CallAction[]           @relation("CallActionTarget")
 
   @@index([role])
   @@index([accountStatus])
@@ -144,11 +146,12 @@ model ConnectionAssignment {
 }
 
 model Conversation {
-  id           String     @id @default(cuid())
-  connectionId String     @unique
-  createdAt    DateTime   @default(now())
-  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id           String       @id @default(cuid())
+  connectionId String       @unique
+  createdAt    DateTime     @default(now())
+  connection   Connection   @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   messages     Message[]
+  callActions  CallAction[]
 }
 
 model Message {
@@ -177,4 +180,20 @@ model VoiceMessageAsset {
   durationMs Int?
   createdAt  DateTime @default(now())
   message    Message  @relation(fields: [messageId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+}
+
+model CallAction {
+  id                String       @id @default(cuid())
+  conversationId    String
+  initiatedByUserId String
+  targetUserId      String
+  targetPhoneNumber String       @db.VarChar(20)
+  initiatedAt       DateTime     @default(now())
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  initiatedBy       User         @relation("CallActionInitiator", fields: [initiatedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  target            User         @relation("CallActionTarget", fields: [targetUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([conversationId, initiatedAt, id])
+  @@index([initiatedByUserId, initiatedAt])
+  @@index([targetUserId, initiatedAt])
 }
