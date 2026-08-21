@@ -2,7 +2,6 @@ import { prisma } from '../../db/client.ts';
 import { canOperateAsCustomer, canOperateAsRelais } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { PrismaClient } from '@prisma/client';
-import type { TextMessage } from './send-text-message.ts';
 
 export const DEFAULT_MESSAGE_PAGE_SIZE = 50;
 export const MAX_MESSAGE_PAGE_SIZE = 100;
@@ -15,7 +14,20 @@ export type ListConversationMessagesInput = {
 };
 
 export type ListConversationMessagesResult = {
-  messages: TextMessage[];
+  messages: Array<{
+    id: string;
+    conversationId: string;
+    senderUserId: string;
+    type: 'TEXT' | 'VOICE';
+    text: string | null;
+    createdAt: Date;
+    voice: {
+      storageKey: string;
+      mimeType: string;
+      byteSize: number;
+      durationMs: number | null;
+    } | null;
+  }>;
   nextCursor: string | null;
 };
 
@@ -148,10 +160,28 @@ export async function listConversationMessages(
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
-      select: { id: true, conversationId: true, senderUserId: true, type: true, text: true, createdAt: true },
+      select: {
+        id: true,
+        conversationId: true,
+        senderUserId: true,
+        type: true,
+        text: true,
+        createdAt: true,
+        voiceAsset: {
+          select: { storageKey: true, mimeType: true, byteSize: true, durationMs: true },
+        },
+      },
     });
     const hasMore = messages.length > limit;
-    const page = messages.slice(0, limit).reverse().map((message) => ({ ...message, type: 'TEXT' as const }));
+    const page = messages.slice(0, limit).reverse().map((message) => ({
+      id: message.id,
+      conversationId: message.conversationId,
+      senderUserId: message.senderUserId,
+      type: message.type,
+      text: message.text,
+      createdAt: message.createdAt,
+      voice: message.voiceAsset,
+    }));
     return {
       messages: page,
       nextCursor: hasMore && page[0] ? page[0].id : null,

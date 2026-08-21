@@ -47,7 +47,7 @@
     "web": "expo start --web",
     "lint": "expo lint app",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test-concurrency=1 --test src/lib/authorization.test.mjs src/server/services/connections/request-connection.test.mjs src/server/services/customers/provision-customer.test.mjs src/server/services/relais/set-relais-availability.test.mjs src/server/services/connections/match-connection.test.mjs src/server/services/connections/connection-terminalization.test.mjs src/server/services/conversations/text-conversation.test.mjs",
+    "test": "node --experimental-strip-types --test-concurrency=1 --test src/lib/authorization.test.mjs src/server/services/connections/request-connection.test.mjs src/server/services/customers/provision-customer.test.mjs src/server/services/relais/set-relais-availability.test.mjs src/server/services/connections/match-connection.test.mjs src/server/services/connections/connection-terminalization.test.mjs src/server/services/conversations/text-conversation.test.mjs src/server/services/conversations/voice-conversation.test.mjs",
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate"

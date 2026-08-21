@@ -46,6 +46,7 @@ enum ConnectionTerminalOutcome {
 
 enum MessageType {
   TEXT
+  VOICE
 }
 
 model User {
@@ -151,17 +152,29 @@ model Conversation {
 }
 
 model Message {
-  id              String       @id @default(cuid())
+  id              String             @id @default(cuid())
   conversationId  String
   senderUserId    String
-  type            MessageType  @default(TEXT)
-  text            String       @db.Text
-  clientMessageId String       @db.VarChar(128)
-  createdAt       DateTime     @default(now())
-  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  sender          User         @relation("MessageSender", fields: [senderUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  type            MessageType        @default(TEXT)
+  text            String?            @db.Text
+  clientMessageId String             @db.VarChar(128)
+  createdAt       DateTime           @default(now())
+  conversation    Conversation       @relation(fields: [conversationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sender          User               @relation("MessageSender", fields: [senderUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  voiceAsset      VoiceMessageAsset?
 
   @@unique([conversationId, senderUserId, clientMessageId])
   @@index([conversationId, createdAt, id])
   @@index([senderUserId, createdAt])
+}
+
+model VoiceMessageAsset {
+  id         String   @id @default(cuid())
+  messageId  String   @unique
+  storageKey String   @unique @db.VarChar(512)
+  mimeType   String   @db.VarChar(64)
+  byteSize   Int
+  durationMs Int?
+  createdAt  DateTime @default(now())
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 }

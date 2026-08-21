@@ -163,7 +163,7 @@ export async function sendTextMessage(
           'The client message id was already used with different content.',
         );
       }
-      return { status: 'EXISTING', message: { ...existing, type: 'TEXT' } };
+      return { status: 'EXISTING', message: { ...existing, type: 'TEXT', text: existing.text ?? '' } };
     }
 
     const message = await transaction.message.create({
@@ -176,6 +176,6 @@ export async function sendTextMessage(
       },
       select: { id: true, conversationId: true, senderUserId: true, type: true, text: true, createdAt: true },
     });
-    return { status: 'CREATED', message: { ...message, type: 'TEXT' } };
+    return { status: 'CREATED', message: { ...message, type: 'TEXT', text: message.text ?? '' } };
   }, { isolationLevel: 'Serializable' });
 }
