@@ -49,23 +49,53 @@ enum MessageType {
   VOICE
 }
 
+enum QuickOfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  SUPERSEDED
+  CANCELLED
+}
+
+enum MissionDepth {
+  QUICK
+  MANAGED
+}
+
+enum MissionUrgency {
+  NORMAL
+  URGENT
+}
+
+enum MissionLifecycle {
+  PENDING_EXECUTION
+  ACTIVE
+  COMPLETION_PENDING
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
 model User {
-  id                   String                 @id @default(cuid())
+  id                          String                 @id @default(cuid())
   // Nullable for pre-phone legacy users; new Customer provisioning always sets both fields.
-  phoneNumber          String?                @unique @db.VarChar(20)
-  phoneVerifiedAt      DateTime?
-  role                 UserRole
-  accountStatus        UserAccountStatus      @default(ACTIVE)
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  customerProfile      CustomerProfile?
-  relaisProfile        RelaisProfile?
-  customerConnections  Connection[]           @relation("CustomerConnections")
-  relaisAssignments    ConnectionAssignment[] @relation("RelaisAssignments")
-  initiatedAssignments ConnectionAssignment[] @relation("AssignmentInitiator")
-  sentMessages         Message[]              @relation("MessageSender")
-  initiatedCallActions CallAction[]           @relation("CallActionInitiator")
-  receivedCallActions  CallAction[]           @relation("CallActionTarget")
+  phoneNumber                 String?                @unique @db.VarChar(20)
+  phoneVerifiedAt             DateTime?
+  role                        UserRole
+  accountStatus               UserAccountStatus      @default(ACTIVE)
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
+  customerProfile             CustomerProfile?
+  relaisProfile               RelaisProfile?
+  customerConnections         Connection[]           @relation("CustomerConnections")
+  relaisAssignments           ConnectionAssignment[] @relation("RelaisAssignments")
+  initiatedAssignments        ConnectionAssignment[] @relation("AssignmentInitiator")
+  sentMessages                Message[]              @relation("MessageSender")
+  initiatedCallActions        CallAction[]           @relation("CallActionInitiator")
+  receivedCallActions         CallAction[]           @relation("CallActionTarget")
+  createdQuickOffers          QuickOffer[]           @relation("QuickOfferCreator")
+  missionAssignments          MissionAssignment[]    @relation("MissionRelaisAssignments")
+  initiatedMissionAssignments MissionAssignment[]    @relation("MissionAssignmentInitiator")
 
   @@index([role])
   @@index([accountStatus])
@@ -121,6 +151,8 @@ model Connection {
   customer          User                       @relation("CustomerConnections", fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   assignments       ConnectionAssignment[]
   conversation      Conversation?
+  quickOffers       QuickOffer[]
+  mission           Mission?
 
   @@unique([customerId, requestKey])
   @@index([customerId, lifecycle])
@@ -196,4 +228,59 @@ model CallAction {
   @@index([conversationId, initiatedAt, id])
   @@index([initiatedByUserId, initiatedAt])
   @@index([targetUserId, initiatedAt])
+}
+
+model QuickOffer {
+  id                    String           @id @default(cuid())
+  connectionId          String
+  createdByRelaisUserId String
+  amount                Int
+  currency              String           @db.VarChar(3)
+  status                QuickOfferStatus @default(PENDING)
+  clientOfferId         String           @db.VarChar(128)
+  createdAt             DateTime         @default(now())
+  acceptedAt            DateTime?
+  rejectedAt            DateTime?
+  supersededAt          DateTime?
+  cancelledAt           DateTime?
+  connection            Connection       @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByRelais       User             @relation("QuickOfferCreator", fields: [createdByRelaisUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acceptedMission       Mission?         @relation("AcceptedQuickOffer")
+
+  @@unique([connectionId, createdByRelaisUserId, clientOfferId])
+  @@index([connectionId, createdAt, id])
+  @@index([createdByRelaisUserId, createdAt])
+}
+
+model Mission {
+  id                   String              @id @default(cuid())
+  connectionId         String              @unique
+  depth                MissionDepth
+  urgency              MissionUrgency      @default(NORMAL)
+  lifecycle            MissionLifecycle    @default(PENDING_EXECUTION)
+  acceptedQuickOfferId String?             @unique
+  createdAt            DateTime            @default(now())
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  failedAt             DateTime?
+  connection           Connection          @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acceptedQuickOffer   QuickOffer?         @relation("AcceptedQuickOffer", fields: [acceptedQuickOfferId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignments          MissionAssignment[]
+}
+
+model MissionAssignment {
+  id               String    @id @default(cuid())
+  missionId        String
+  relaisUserId     String
+  assignedAt       DateTime  @default(now())
+  endedAt          DateTime?
+  reason           String?   @db.Text
+  assignedByUserId String?
+  mission          Mission   @relation(fields: [missionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  relaisUser       User      @relation("MissionRelaisAssignments", fields: [relaisUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignedByUser   User?     @relation("MissionAssignmentInitiator", fields: [assignedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([missionId, assignedAt])
+  @@index([relaisUserId, assignedAt])
+  @@index([assignedByUserId])
 }

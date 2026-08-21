@@ -1,7 +1,10 @@
 import { prisma } from '../../db/client.ts';
-import { canOperateAsCustomer, canOperateAsRelais } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { PrismaClient } from '@prisma/client';
+import {
+  authorizeConversationParticipant,
+  ConversationAuthorizationError,
+} from './conversation-authorization.ts';
 
 export type PrepareNativeCallHandoffInput = {
   actor: AuthorizationSubject;
@@ -34,13 +37,6 @@ export class PrepareNativeCallHandoffError extends Error {
     this.code = code;
   }
 }
-
-type LockedConversation = {
-  conversationId: string;
-  connectionId: string;
-  customerId: string;
-  lifecycle: 'MATCHING' | 'CONNECTED' | 'ENDED';
-};
 
 type TargetUser = {
   id: string;
@@ -76,37 +72,13 @@ export async function prepareNativeCallHandoff(
     );
   }
 
-  const customerAuthorization = canOperateAsCustomer(input.actor);
-  const relaisAuthorization = canOperateAsRelais(input.actor);
-  if (!customerAuthorization.allowed && !relaisAuthorization.allowed) {
-    throw new PrepareNativeCallHandoffError(
-      'UNAUTHORIZED',
-      'The actor is not authorized to initiate a native call handoff.',
+  try {
+    return await client.$transaction(async (transaction) => {
+    const conversation = await authorizeConversationParticipant(
+      transaction,
+      input.actor,
+      input.conversationId,
     );
-  }
-
-  return client.$transaction(async (transaction) => {
-    const rows = await transaction.$queryRaw<LockedConversation[]>`
-      SELECT
-        conversation."id" AS "conversationId",
-        connection."id" AS "connectionId",
-        connection."customerId",
-        connection."lifecycle"
-      FROM "Conversation" conversation
-      INNER JOIN "Connection" connection ON connection."id" = conversation."connectionId"
-      WHERE conversation."id" = ${input.conversationId}
-      FOR UPDATE OF connection
-    `;
-    const conversation = rows[0];
-    if (!conversation) {
-      throw new PrepareNativeCallHandoffError('CONVERSATION_NOT_FOUND', 'The Conversation was not found.');
-    }
-    if (conversation.lifecycle !== 'CONNECTED') {
-      throw new PrepareNativeCallHandoffError(
-        'CONNECTION_NOT_CONNECTED',
-        'Native call handoff requires a CONNECTED Connection.',
-      );
-    }
 
     const actor = await transaction.user.findUnique({
       where: { id: input.actor.userId },
@@ -117,16 +89,16 @@ export async function prepareNativeCallHandoff(
     }
 
     let target: TargetUser | null = null;
-    if (
-      customerAuthorization.allowed &&
-      actor.role === 'CUSTOMER' &&
-      actor.accountStatus === 'ACTIVE' &&
-      conversation.customerId === actor.id
-    ) {
-      const assignment = await transaction.connectionAssignment.findFirst({
-        where: { connectionId: conversation.connectionId, endedAt: null },
-        select: { relaisUser: { select: { id: true, role: true, accountStatus: true, phoneNumber: true, phoneVerifiedAt: true, relaisProfile: { select: { eligibility: true } } } } },
-      });
+    if (actor.role === 'CUSTOMER' && conversation.customerId === actor.id) {
+      const assignment = conversation.missionId
+        ? await transaction.missionAssignment.findFirst({
+            where: { missionId: conversation.missionId, endedAt: null },
+            select: { relaisUser: { select: { id: true, role: true, accountStatus: true, phoneNumber: true, phoneVerifiedAt: true, relaisProfile: { select: { eligibility: true } } } } },
+          })
+        : await transaction.connectionAssignment.findFirst({
+            where: { connectionId: conversation.connectionId, endedAt: null },
+            select: { relaisUser: { select: { id: true, role: true, accountStatus: true, phoneNumber: true, phoneVerifiedAt: true, relaisProfile: { select: { eligibility: true } } } } },
+          });
       target = assignment?.relaisUser ?? null;
       if (
         !target ||
@@ -136,19 +108,7 @@ export async function prepareNativeCallHandoff(
       ) {
         throw new PrepareNativeCallHandoffError('CALL_TARGET_UNAVAILABLE', 'The current assigned Relais is not callable.');
       }
-    } else if (
-      relaisAuthorization.allowed &&
-      actor.role === 'RELAIS' &&
-      actor.accountStatus === 'ACTIVE' &&
-      actor.relaisProfile?.eligibility === 'APPROVED'
-    ) {
-      const assignment = await transaction.connectionAssignment.findFirst({
-        where: { connectionId: conversation.connectionId, relaisUserId: actor.id, endedAt: null },
-        select: { id: true },
-      });
-      if (!assignment) {
-        throw new PrepareNativeCallHandoffError('UNAUTHORIZED', 'Only the currently assigned Relais may call this Customer.');
-      }
+    } else if (actor.role === 'RELAIS') {
       target = await transaction.user.findUnique({
         where: { id: conversation.customerId },
         select: { id: true, role: true, accountStatus: true, phoneNumber: true, phoneVerifiedAt: true, relaisProfile: { select: { eligibility: true } } },
@@ -180,5 +140,11 @@ export async function prepareNativeCallHandoff(
       },
       initiatedAt: callAction.initiatedAt,
     };
-  }, { isolationLevel: 'Serializable' });
+    }, { isolationLevel: 'Serializable' });
+  } catch (error) {
+    if (error instanceof ConversationAuthorizationError) {
+      throw new PrepareNativeCallHandoffError(error.code, error.message);
+    }
+    throw error;
+  }
 }

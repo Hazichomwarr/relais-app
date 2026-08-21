@@ -1,7 +1,7 @@
 import { prisma } from '../../db/client.ts';
-import { canOperateAsCustomer, canOperateAsRelais } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { PrismaClient } from '@prisma/client';
+import { authorizeConversationParticipant, ConversationAuthorizationError } from './conversation-authorization.ts';
 
 export const DEFAULT_MESSAGE_PAGE_SIZE = 50;
 export const MAX_MESSAGE_PAGE_SIZE = 100;
@@ -49,13 +49,6 @@ export class ListConversationMessagesError extends Error {
   }
 }
 
-type LockedConversation = {
-  conversationId: string;
-  connectionId: string;
-  customerId: string;
-  lifecycle: 'MATCHING' | 'CONNECTED' | 'ENDED';
-};
-
 function getLimit(limit: number | undefined): number {
   if (limit === undefined) return DEFAULT_MESSAGE_PAGE_SIZE;
   if (!Number.isInteger(limit) || limit < 1 || limit > MAX_MESSAGE_PAGE_SIZE) {
@@ -79,62 +72,13 @@ export async function listConversationMessages(
     throw new ListConversationMessagesError('INVALID_CURSOR', 'Cursor cannot be empty.');
   }
 
-  const customerAuthorization = canOperateAsCustomer(input.actor);
-  const relaisAuthorization = canOperateAsRelais(input.actor);
-  if (!customerAuthorization.allowed && !relaisAuthorization.allowed) {
-    throw new ListConversationMessagesError('UNAUTHORIZED', 'The actor is not authorized to read Conversation text.');
-  }
-
-  return client.$transaction(async (transaction) => {
-    const conversations = await transaction.$queryRaw<LockedConversation[]>`
-      SELECT
-        conversation."id" AS "conversationId",
-        connection."id" AS "connectionId",
-        connection."customerId",
-        connection."lifecycle"
-      FROM "Conversation" conversation
-      INNER JOIN "Connection" connection ON connection."id" = conversation."connectionId"
-      WHERE conversation."id" = ${input.conversationId}
-      FOR UPDATE OF connection
-    `;
-    const conversation = conversations[0];
-    if (!conversation) {
-      throw new ListConversationMessagesError('CONVERSATION_NOT_FOUND', 'The Conversation was not found.');
-    }
-    if (conversation.lifecycle !== 'CONNECTED') {
-      throw new ListConversationMessagesError(
-        'CONNECTION_NOT_CONNECTED',
-        'Conversation text is available only for CONNECTED Connections.',
+  try {
+    return await client.$transaction(async (transaction) => {
+      const conversation = await authorizeConversationParticipant(
+        transaction,
+        input.actor,
+        input.conversationId,
       );
-    }
-
-    const actorRecord = await transaction.user.findUnique({
-      where: { id: input.actor.userId },
-      select: { role: true, accountStatus: true, relaisProfile: { select: { eligibility: true } } },
-    });
-    let authorized = false;
-    if (
-      actorRecord?.role === 'CUSTOMER' &&
-      actorRecord.accountStatus === 'ACTIVE' &&
-      conversation.customerId === input.actor.userId
-    ) {
-      authorized = customerAuthorization.allowed;
-    }
-    if (
-      actorRecord?.role === 'RELAIS' &&
-      actorRecord.accountStatus === 'ACTIVE' &&
-      actorRecord.relaisProfile?.eligibility === 'APPROVED' &&
-      relaisAuthorization.allowed
-    ) {
-      const assignment = await transaction.connectionAssignment.findFirst({
-        where: { connectionId: conversation.connectionId, relaisUserId: input.actor.userId, endedAt: null },
-        select: { id: true },
-      });
-      authorized = Boolean(assignment);
-    }
-    if (!authorized) {
-      throw new ListConversationMessagesError('UNAUTHORIZED', 'The actor is not an authorized participant in this Conversation.');
-    }
 
     const anchor = input.cursor
       ? await transaction.message.findFirst({
@@ -186,5 +130,11 @@ export async function listConversationMessages(
       messages: page,
       nextCursor: hasMore && page[0] ? page[0].id : null,
     };
-  }, { isolationLevel: 'Serializable' });
+    }, { isolationLevel: 'Serializable' });
+  } catch (error) {
+    if (error instanceof ConversationAuthorizationError) {
+      throw new ListConversationMessagesError(error.code, error.message);
+    }
+    throw error;
+  }
 }
