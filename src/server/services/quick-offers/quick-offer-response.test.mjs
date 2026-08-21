@@ -39,7 +39,7 @@ if (!process.env.DATABASE_URL) {
     const user = await prisma.user.create({
       data: {
         role: 'CUSTOMER',
-        phoneNumber: `+226701${String(100000 + sequence++).slice(-6)}`,
+        phoneNumber: `+226701${String(Date.now() + sequence++).slice(-6)}`,
         phoneVerifiedAt: new Date(),
         customerProfile: { create: {} },
       },
@@ -52,7 +52,7 @@ if (!process.env.DATABASE_URL) {
     const user = await prisma.user.create({
       data: {
         role: 'RELAIS',
-        phoneNumber: `+226702${String(100000 + sequence++).slice(-6)}`,
+        phoneNumber: `+226702${String(Date.now() + sequence++).slice(-6)}`,
         phoneVerifiedAt: new Date(),
         relaisProfile: { create: { eligibility: 'APPROVED', availability: 'UNAVAILABLE' } },
       },
@@ -236,6 +236,7 @@ if (!process.env.DATABASE_URL) {
       await prisma.voiceMessageAsset.deleteMany({ where: { message: { conversation: { connectionId: { in: connectionIds } } } } });
       await prisma.message.deleteMany({ where: { conversation: { connectionId: { in: connectionIds } } } });
       await prisma.missionAssignment.deleteMany({ where: { mission: { connectionId: { in: connectionIds } } } });
+      await prisma.paymentAttempt.deleteMany({ where: { paymentObligation: { mission: { connectionId: { in: connectionIds } } } } });
       await prisma.paymentObligation.deleteMany({ where: { mission: { connectionId: { in: connectionIds } } } });
       await prisma.mission.deleteMany({ where: { connectionId: { in: connectionIds } } });
       await prisma.quickOffer.deleteMany({ where: { connectionId: { in: connectionIds } } });

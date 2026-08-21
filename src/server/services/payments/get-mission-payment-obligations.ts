@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { canOperateAsCustomer, canOperateAsRelais } from '../../../lib/authorization.ts';
+import { canOperateAsAdmin, canOperateAsCustomer, canOperateAsRelais } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
 import type { PaymentObligationSummary } from './create-quick-payment-obligation.ts';
@@ -10,7 +10,18 @@ export type GetMissionPaymentObligationsInput = {
 };
 
 export type GetMissionPaymentObligationsResult = {
-  obligations: PaymentObligationSummary[];
+  obligations: Array<PaymentObligationSummary & { attempts: Array<{
+    id: string;
+    paymentObligationId: string;
+    amount: number;
+    currency: string;
+    method: 'MOBILE_MONEY' | 'CARD' | 'BANK_TRANSFER' | 'CASH' | 'MANUAL_TRANSFER';
+    status: 'INITIATED' | 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+    initiatedAt: Date;
+    confirmedAt: Date | null;
+    failedAt: Date | null;
+    failureCode: string | null;
+  }> }>;
 };
 
 export type GetMissionPaymentObligationsErrorCode =
@@ -37,6 +48,7 @@ export async function getMissionPaymentObligations(
   }
   const customerAuthorization = canOperateAsCustomer(input.actor);
   const relaisAuthorization = canOperateAsRelais(input.actor);
+  const adminAuthorization = canOperateAsAdmin(input.actor);
 
   return client.$transaction(async (transaction) => {
     const mission = await transaction.mission.findUnique({
@@ -70,7 +82,8 @@ export async function getMissionPaymentObligations(
       actor.accountStatus === 'ACTIVE' &&
       actor.relaisProfile?.eligibility === 'APPROVED' &&
       mission.assignments.length > 0;
-    if (!customerAllowed && !relaisAllowed) {
+    const adminAllowed = adminAuthorization.allowed && actor?.role === 'ADMIN' && actor.accountStatus === 'ACTIVE';
+    if (!customerAllowed && !relaisAllowed && !adminAllowed) {
       throw new GetMissionPaymentObligationsError(
         'UNAUTHORIZED',
         'Only the owning Customer or current Mission Relais may read Payment Obligations.',
@@ -91,6 +104,21 @@ export async function getMissionPaymentObligations(
         createdAt: true,
         settledAt: true,
         cancelledAt: true,
+        attempts: {
+          orderBy: [{ initiatedAt: 'asc' }, { id: 'asc' }],
+          select: {
+            id: true,
+            paymentObligationId: true,
+            amount: true,
+            currency: true,
+            method: true,
+            status: true,
+            initiatedAt: true,
+            confirmedAt: true,
+            failedAt: true,
+            failureCode: true,
+          },
+        },
       },
     });
     return { obligations };

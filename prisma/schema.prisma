@@ -90,6 +90,27 @@ enum PaymentObligationStatus {
   REFUNDED
 }
 
+enum PaymentAttemptStatus {
+  INITIATED
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  MOBILE_MONEY
+  CARD
+  BANK_TRANSFER
+  CASH
+  MANUAL_TRANSFER
+}
+
+enum PaymentConfirmationSource {
+  PROVIDER
+  MANUAL
+}
+
 model User {
   id                          String                 @id @default(cuid())
   // Nullable for pre-phone legacy users; new Customer provisioning always sets both fields.
@@ -110,6 +131,7 @@ model User {
   createdQuickOffers          QuickOffer[]           @relation("QuickOfferCreator")
   missionAssignments          MissionAssignment[]    @relation("MissionRelaisAssignments")
   initiatedMissionAssignments MissionAssignment[]    @relation("MissionAssignmentInitiator")
+  confirmedPaymentAttempts    PaymentAttempt[]       @relation("PaymentConfirmationActor")
 
   @@index([role])
   @@index([accountStatus])
@@ -314,7 +336,33 @@ model PaymentObligation {
   cancelledAt        DateTime?
   mission            Mission                  @relation(fields: [missionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   sourceQuickOffer   QuickOffer?              @relation("QuickOfferPaymentSource", fields: [sourceQuickOfferId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attempts           PaymentAttempt[]
 
   @@index([missionId, createdAt, id])
   @@index([status, createdAt])
+}
+
+model PaymentAttempt {
+  id                  String                     @id @default(cuid())
+  paymentObligationId String
+  amount              Int
+  currency            String                     @db.VarChar(3)
+  method              PaymentMethod
+  provider            String                     @db.VarChar(64)
+  externalReference   String?                    @db.VarChar(128)
+  status              PaymentAttemptStatus       @default(INITIATED)
+  clientAttemptId     String                     @db.VarChar(128)
+  initiatedAt         DateTime                   @default(now())
+  confirmedAt         DateTime?
+  failedAt            DateTime?
+  failureCode         String?                    @db.VarChar(64)
+  confirmationSource  PaymentConfirmationSource?
+  confirmedByUserId   String?
+  paymentObligation   PaymentObligation          @relation(fields: [paymentObligationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  confirmedByUser     User?                      @relation("PaymentConfirmationActor", fields: [confirmedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([paymentObligationId, clientAttemptId])
+  @@unique([provider, externalReference])
+  @@index([paymentObligationId, status, initiatedAt, id])
+  @@index([confirmedByUserId])
 }

@@ -21,27 +21,31 @@ if (!process.env.DATABASE_URL) {
     const customer = await prisma.user.create({ data: {
       role: 'CUSTOMER', phoneNumber: `+226703${String(100000 + sequence++).slice(-6)}`, phoneVerifiedAt: new Date(), customerProfile: { create: {} },
     } });
+    userIds.push(customer.id);
     const relais = await prisma.user.create({ data: {
       role: 'RELAIS', phoneNumber: `+226704${String(100000 + sequence++).slice(-6)}`, phoneVerifiedAt: new Date(),
       relaisProfile: { create: { eligibility: 'APPROVED', availability: 'UNAVAILABLE' } },
     } });
+    userIds.push(relais.id);
     const connection = await prisma.connection.create({ data: {
       customerId: customer.id, requestKey: `3c-${Date.now()}-${sequence++}`, lifecycle: 'CONNECTED', connectedAt: new Date(),
     } });
-    await prisma.connectionAssignment.create({ data: { connectionId: connection.id, relaisUserId: relais.id } });
-    const offer = await createQuickOffer({ actor: relaisActor(relais), connectionId: connection.id, amount, currency, clientOfferId: `3c-offer-${sequence++}` }, prisma);
-    userIds.push(customer.id, relais.id);
     connectionIds.push(connection.id);
+    await prisma.connectionAssignment.create({ data: { connectionId: connection.id, relaisUserId: relais.id } });
+    await prisma.conversation.create({ data: { connectionId: connection.id } });
+    const offer = await createQuickOffer({ actor: relaisActor(relais), connectionId: connection.id, amount, currency, clientOfferId: `3c-offer-${sequence++}` }, prisma);
     return { customer, relais, connection, offer: offer.offer };
   }
 
   async function cleanup() {
     if (connectionIds.length) {
+      await prisma.paymentAttempt.deleteMany({ where: { paymentObligation: { mission: { connectionId: { in: connectionIds } } } } });
       await prisma.paymentObligation.deleteMany({ where: { mission: { connectionId: { in: connectionIds } } } });
       await prisma.missionAssignment.deleteMany({ where: { mission: { connectionId: { in: connectionIds } } } });
       await prisma.mission.deleteMany({ where: { connectionId: { in: connectionIds } } });
       await prisma.quickOffer.deleteMany({ where: { connectionId: { in: connectionIds } } });
       await prisma.connectionAssignment.deleteMany({ where: { connectionId: { in: connectionIds } } });
+      await prisma.conversation.deleteMany({ where: { connectionId: { in: connectionIds } } });
       await prisma.connection.deleteMany({ where: { id: { in: connectionIds } } });
     }
     if (userIds.length) {
