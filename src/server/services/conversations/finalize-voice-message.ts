@@ -90,6 +90,15 @@ function mapStorageError(error: unknown): FinalizeVoiceMessageError | null {
   return new FinalizeVoiceMessageError('UPLOAD_NOT_FOUND', error.message);
 }
 
+function isRetryableFinalizationConflict(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (typeof error === 'object' && error !== null && 'code' in error &&
+    (error.code === 'P2002' || error.code === 'P2034' || error.code === '40001')) ||
+    message.includes('40001') || message.includes('could not serialize access') ||
+    message.includes('TransactionWriteConflict') || message.includes('write conflict') ||
+    message.includes('deadlock');
+}
+
 export async function finalizeVoiceMessage(
   input: FinalizeVoiceMessageInput,
   client: PrismaClient = prisma,
@@ -129,8 +138,9 @@ export async function finalizeVoiceMessage(
     throw new FinalizeVoiceMessageError('VOICE_TOO_LONG', `Voice messages cannot exceed ${MAX_VOICE_DURATION_MS}ms.`);
   }
 
-  try {
-    return await client.$transaction(async (transaction) => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await client.$transaction(async (transaction) => {
       const context = await authorizeVoiceConversation(transaction, input.actor, input.conversationId);
       const existing = await transaction.message.findFirst({
         where: {
@@ -207,11 +217,14 @@ export async function finalizeVoiceMessage(
           },
         },
       };
-    }, { isolationLevel: 'Serializable' });
-  } catch (error) {
-    if (error instanceof VoiceConversationAuthorizationError) {
-      throw new FinalizeVoiceMessageError(error.code, error.message);
+      }, { isolationLevel: 'Serializable' });
+    } catch (error) {
+      if (error instanceof VoiceConversationAuthorizationError) {
+        throw new FinalizeVoiceMessageError(error.code, error.message);
+      }
+      if (isRetryableFinalizationConflict(error) && attempt < 2) continue;
+      throw error;
     }
-    throw error;
   }
+  throw new Error('Voice message finalization could not complete safely.');
 }
