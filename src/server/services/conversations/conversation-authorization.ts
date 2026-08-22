@@ -63,15 +63,15 @@ export async function authorizeConversationParticipant(
     conversation.terminalOutcome === 'MISSION_CREATED' &&
     Boolean(conversation.missionId);
   const mode = options.mode ?? 'write';
-  const completedMissionRead = missionConversation && conversation.missionLifecycle === 'COMPLETED';
+  const terminalMissionWrite = missionConversation && ['COMPLETED', 'CANCELLED', 'FAILED'].includes(conversation.missionLifecycle ?? '');
   if (conversation.lifecycle !== 'CONNECTED' && !missionConversation) {
     throw new ConversationAuthorizationError(
       'CONNECTION_NOT_CONNECTED',
       'Conversation access is not available for this Connection state.',
     );
   }
-  if (mode === 'write' && completedMissionRead) {
-    throw new ConversationAuthorizationError('CONNECTION_NOT_CONNECTED', 'Operational Conversation writes are closed after Mission completion.');
+  if (mode === 'write' && terminalMissionWrite) {
+    throw new ConversationAuthorizationError('CONNECTION_NOT_CONNECTED', 'Operational Conversation writes are closed after Mission termination.');
   }
 
   const customerAuthorization = canOperateAsCustomer(actor);

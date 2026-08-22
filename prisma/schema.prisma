@@ -122,6 +122,15 @@ enum CompletionAttemptStatus {
   DISPUTED
 }
 
+enum QuickRefundEntitlementReason {
+  BEFORE_EXECUTION_STARTED
+  AFTER_EXECUTION_STARTED
+}
+
+enum QuickRefundPolicyVersion {
+  QUICK_V1
+}
+
 model User {
   id                          String                 @id @default(cuid())
   // Nullable for pre-phone legacy users; new Customer provisioning always sets both fields.
@@ -146,6 +155,7 @@ model User {
   confirmedPaymentAttempts    PaymentAttempt[]       @relation("PaymentConfirmationActor")
   proposedCompletionAttempts  CompletionAttempt[]    @relation("CompletionProposalAuthor")
   respondedCompletionAttempts CompletionAttempt[]    @relation("CompletionResponseAuthor")
+  cancelledMissions           MissionCancellation[]
 
   @@index([role])
   @@index([accountStatus])
@@ -304,23 +314,25 @@ model QuickOffer {
 }
 
 model Mission {
-  id                   String              @id @default(cuid())
-  connectionId         String              @unique
+  id                   String               @id @default(cuid())
+  connectionId         String               @unique
   depth                MissionDepth
-  urgency              MissionUrgency      @default(NORMAL)
-  lifecycle            MissionLifecycle    @default(PENDING_EXECUTION)
-  acceptedQuickOfferId String?             @unique
-  createdAt            DateTime            @default(now())
+  urgency              MissionUrgency       @default(NORMAL)
+  lifecycle            MissionLifecycle     @default(PENDING_EXECUTION)
+  acceptedQuickOfferId String?              @unique
+  createdAt            DateTime             @default(now())
   executionStartedAt   DateTime?
   completedAt          DateTime?
   cancelledAt          DateTime?
   failedAt             DateTime?
-  connection           Connection          @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  acceptedQuickOffer   QuickOffer?         @relation("AcceptedQuickOffer", fields: [acceptedQuickOfferId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  connection           Connection           @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acceptedQuickOffer   QuickOffer?          @relation("AcceptedQuickOffer", fields: [acceptedQuickOfferId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   assignments          MissionAssignment[]
   paymentObligations   PaymentObligation[]
   updates              MissionUpdate[]
   completionAttempts   CompletionAttempt[]
+  cancellation         MissionCancellation?
+  refundEntitlement    RefundEntitlement?
 }
 
 model MissionAssignment {
@@ -354,6 +366,7 @@ model PaymentObligation {
   mission            Mission                  @relation(fields: [missionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   sourceQuickOffer   QuickOffer?              @relation("QuickOfferPaymentSource", fields: [sourceQuickOfferId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   attempts           PaymentAttempt[]
+  refundEntitlement  RefundEntitlement?
 
   @@index([missionId, createdAt, id])
   @@index([status, createdAt])
@@ -418,4 +431,36 @@ model CompletionAttempt {
   @@unique([missionId, proposedByUserId, clientCompletionId])
   @@index([missionId, proposedAt, id])
   @@index([status, missionId])
+}
+
+model MissionCancellation {
+  id                String             @id @default(cuid())
+  missionId         String             @unique
+  cancelledByUserId String
+  reason            String?            @db.Text
+  cancelledAt       DateTime           @default(now())
+  mission           Mission            @relation(fields: [missionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cancelledBy       User               @relation(fields: [cancelledByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  refundEntitlement RefundEntitlement?
+
+  @@index([cancelledByUserId, cancelledAt])
+}
+
+model RefundEntitlement {
+  id                    String                       @id @default(cuid())
+  missionId             String                       @unique
+  paymentObligationId   String                       @unique
+  cancellationId        String                       @unique
+  originalAmount        Int
+  refundRateBasisPoints Int
+  entitledAmount        Int
+  currency              String                       @db.VarChar(3)
+  reason                QuickRefundEntitlementReason
+  policyVersion         QuickRefundPolicyVersion
+  createdAt             DateTime                     @default(now())
+  mission               Mission                      @relation(fields: [missionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paymentObligation     PaymentObligation            @relation(fields: [paymentObligationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cancellation          MissionCancellation          @relation(fields: [cancellationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([reason, createdAt])
 }
