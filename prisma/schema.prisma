@@ -147,6 +147,14 @@ enum MissionFeedbackDirection {
   RELAIS_TO_CUSTOMER
 }
 
+enum ManagedProposalStatus {
+  DRAFT
+  SENT
+  SUPERSEDED
+  ACCEPTED
+  REJECTED
+}
+
 model User {
   id                          String                 @id @default(cuid())
   // Nullable for pre-phone legacy users; new Customer provisioning always sets both fields.
@@ -176,6 +184,8 @@ model User {
   confirmedRefundExecutions   RefundExecution[]      @relation("RefundExecutionConfirmer")
   authoredMissionFeedback     MissionFeedback[]      @relation("MissionFeedbackAuthor")
   receivedMissionFeedback     MissionFeedback[]      @relation("MissionFeedbackSubject")
+  managedProposalsAsCustomer  ManagedProposal[]      @relation("ManagedProposalCustomer")
+  managedProposalsAsRelais    ManagedProposal[]      @relation("ManagedProposalRelais")
 
   @@index([role])
   @@index([accountStatus])
@@ -233,6 +243,7 @@ model Connection {
   conversation      Conversation?
   quickOffers       QuickOffer[]
   mission           Mission?
+  managedProposals  ManagedProposal[]
 
   @@unique([customerId, requestKey])
   @@index([customerId, lifecycle])
@@ -258,12 +269,13 @@ model ConnectionAssignment {
 }
 
 model Conversation {
-  id           String       @id @default(cuid())
-  connectionId String       @unique
-  createdAt    DateTime     @default(now())
-  connection   Connection   @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  messages     Message[]
-  callActions  CallAction[]
+  id               String            @id @default(cuid())
+  connectionId     String            @unique
+  createdAt        DateTime          @default(now())
+  connection       Connection        @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  messages         Message[]
+  callActions      CallAction[]
+  managedProposals ManagedProposal[]
 }
 
 model Message {
@@ -535,4 +547,32 @@ model MissionFeedback {
   @@index([authorUserId, createdAt])
   @@index([subjectUserId, createdAt])
   @@index([missionId, createdAt, id])
+}
+
+model ManagedProposal {
+  id                    String                @id @default(cuid())
+  conversationId        String
+  connectionId          String
+  customerUserId        String
+  relaisUserId          String
+  status                ManagedProposalStatus @default(DRAFT)
+  title                 String                @db.VarChar(200)
+  summary               String                @db.Text
+  estimatedDurationText String?               @db.VarChar(100)
+  serviceAmount         Int
+  currency              String                @db.VarChar(3)
+  version               Int
+  clientProposalId      String                @db.VarChar(128)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  conversation          Conversation          @relation(fields: [conversationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  connection            Connection            @relation(fields: [connectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  customer              User                  @relation("ManagedProposalCustomer", fields: [customerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  relais                User                  @relation("ManagedProposalRelais", fields: [relaisUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([conversationId, version])
+  @@unique([conversationId, relaisUserId, clientProposalId])
+  @@index([connectionId, createdAt, id])
+  @@index([customerUserId, createdAt])
+  @@index([relaisUserId, createdAt])
 }
