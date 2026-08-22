@@ -111,6 +111,11 @@ enum PaymentConfirmationSource {
   MANUAL
 }
 
+enum MissionUpdateType {
+  PROGRESS
+  NOTE
+}
+
 model User {
   id                          String                 @id @default(cuid())
   // Nullable for pre-phone legacy users; new Customer provisioning always sets both fields.
@@ -131,6 +136,7 @@ model User {
   createdQuickOffers          QuickOffer[]           @relation("QuickOfferCreator")
   missionAssignments          MissionAssignment[]    @relation("MissionRelaisAssignments")
   initiatedMissionAssignments MissionAssignment[]    @relation("MissionAssignmentInitiator")
+  authoredMissionUpdates      MissionUpdate[]        @relation("MissionUpdateAuthor")
   confirmedPaymentAttempts    PaymentAttempt[]       @relation("PaymentConfirmationActor")
 
   @@index([role])
@@ -305,6 +311,7 @@ model Mission {
   acceptedQuickOffer   QuickOffer?         @relation("AcceptedQuickOffer", fields: [acceptedQuickOfferId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   assignments          MissionAssignment[]
   paymentObligations   PaymentObligation[]
+  updates              MissionUpdate[]
 }
 
 model MissionAssignment {
@@ -366,4 +373,20 @@ model PaymentAttempt {
   @@unique([provider, externalReference])
   @@index([paymentObligationId, status, initiatedAt, id])
   @@index([confirmedByUserId])
+}
+
+model MissionUpdate {
+  id             String            @id @default(cuid())
+  missionId      String
+  authorUserId   String
+  type           MissionUpdateType
+  text           String            @db.Text
+  clientUpdateId String            @db.VarChar(128)
+  createdAt      DateTime          @default(now())
+  mission        Mission           @relation(fields: [missionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  author         User              @relation("MissionUpdateAuthor", fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([missionId, authorUserId, clientUpdateId])
+  @@index([missionId, createdAt, id])
+  @@index([authorUserId, createdAt])
 }
