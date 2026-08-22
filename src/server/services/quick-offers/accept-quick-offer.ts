@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { canOperateAsCustomer } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 import {
   createQuickPaymentObligationInTransaction,
   type PaymentObligationSummary,
@@ -263,7 +264,7 @@ async function acceptOnce(
       mission: missionResult(mission),
       paymentObligation: payment.obligation,
     };
-  }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
+  }, serializableTransactionOptions());
 }
 
 export async function acceptQuickOffer(

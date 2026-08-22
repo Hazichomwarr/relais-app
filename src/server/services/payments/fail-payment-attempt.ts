@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 import type { PaymentAttemptSummary } from './create-payment-attempt.ts';
 
 export type FailPaymentAttemptInput = { paymentAttemptId: string; failureCode?: string };
@@ -27,5 +28,5 @@ export async function failPaymentAttempt(input: FailPaymentAttemptInput, client:
     if (!['INITIATED', 'PENDING'].includes(current.status)) throw new FailPaymentAttemptError('INVALID_PAYMENT_ATTEMPT_STATE', 'Only an active Payment Attempt may fail.');
     const attempt = await transaction.paymentAttempt.update({ where: { id: current.id }, data: { status: 'FAILED', failedAt: new Date(), failureCode: input.failureCode ?? null }, select: attemptSelect });
     return { status: 'FAILED', attempt };
-  }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
+  }, serializableTransactionOptions());
 }

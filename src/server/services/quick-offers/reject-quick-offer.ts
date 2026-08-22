@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { canOperateAsCustomer } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 
 export type RejectQuickOfferInput = {
   actor: AuthorizationSubject;
@@ -113,7 +114,7 @@ async function rejectOnce(
     const rejectedAt = rejectedRows[0]?.rejectedAt;
     if (!rejectedAt) throw new RejectQuickOfferError('REJECTION_CONFLICT', 'The QUICK Offer changed before rejection completed.');
     return { status: 'REJECTED', offer: { ...offer, status: 'REJECTED', rejectedAt } };
-  }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
+  }, serializableTransactionOptions());
 }
 
 export async function rejectQuickOffer(

@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { canOperateAsRelais } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 
 export const DEFAULT_QUICK_OFFER_CURRENCY = 'XOF';
 export const MAX_QUICK_OFFER_AMOUNT = 10_000_000;
@@ -216,7 +217,7 @@ async function createOnce(
       });
       return { status: 'CREATED', offer: created as QuickOffer };
     },
-    { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 },
+    serializableTransactionOptions(),
   );
 }
 

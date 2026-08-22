@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { canOperateAsAdmin } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 import type { PaymentAttemptSummary } from './create-payment-attempt.ts';
 import type { PaymentObligationSummary } from './create-quick-payment-obligation.ts';
 
@@ -110,7 +111,7 @@ async function confirmOnce(input: ConfirmPaymentAttemptInput, client: PrismaClie
       ? await transaction.mission.update({ where: { id: attempt.paymentObligation.mission.id }, data: { lifecycle: 'ACTIVE' }, select: { id: true, lifecycle: true } })
       : attempt.paymentObligation.mission;
     return { status: 'CONFIRMED', attempt: updatedAttempt, obligation: updatedObligation, mission: { id: missionUpdate.id, lifecycle: missionUpdate.lifecycle === 'ACTIVE' ? 'ACTIVE' : 'PENDING_EXECUTION' } };
-  }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
+  }, serializableTransactionOptions());
 }
 
 export async function confirmPaymentAttempt(input: ConfirmPaymentAttemptInput, client: PrismaClient = prisma): Promise<ConfirmPaymentAttemptResult> {

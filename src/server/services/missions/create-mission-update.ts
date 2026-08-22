@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { canOperateAsRelais } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 
 export const MAX_MISSION_UPDATE_TEXT_LENGTH = 2_000;
 
@@ -143,7 +144,7 @@ async function createOnce(input: CreateMissionUpdateInput, client: PrismaClient)
       select: updateSelect,
     });
     return { status: 'CREATED', update };
-  }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
+  }, serializableTransactionOptions());
 }
 
 export async function createMissionUpdate(input: CreateMissionUpdateInput, client: PrismaClient = prisma): Promise<CreateMissionUpdateResult> {

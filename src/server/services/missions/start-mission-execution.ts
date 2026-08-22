@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { canOperateAsRelais } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 
 export type StartMissionExecutionInput = {
   actor: AuthorizationSubject;
@@ -121,7 +122,7 @@ async function startOnce(input: StartMissionExecutionInput, client: PrismaClient
       status: 'STARTED',
       mission: { id: row.id, depth: 'QUICK', lifecycle: 'ACTIVE', executionStartedAt: row.executionStartedAt },
     };
-  }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
+  }, serializableTransactionOptions());
 }
 
 export async function startMissionExecution(

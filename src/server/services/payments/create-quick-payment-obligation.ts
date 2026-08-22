@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 
 export type QuickPaymentObligationInput = {
   missionId: string;
@@ -177,7 +178,7 @@ export async function createQuickPaymentObligation(
     try {
       return await client.$transaction(
         (transaction) => createQuickPaymentObligationInTransaction(transaction, input.missionId),
-        { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 },
+        serializableTransactionOptions(),
       );
     } catch (error) {
       if (isRetryableConflict(error) && attempt < 2) continue;

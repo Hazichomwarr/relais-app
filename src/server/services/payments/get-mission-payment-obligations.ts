@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { canOperateAsAdmin, canOperateAsCustomer, canOperateAsRelais } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 import type { PaymentObligationSummary } from './create-quick-payment-obligation.ts';
 
 export type GetMissionPaymentObligationsInput = {
@@ -139,5 +140,5 @@ export async function getMissionPaymentObligations(
       },
       obligations,
     };
-  }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
+  }, serializableTransactionOptions());
 }

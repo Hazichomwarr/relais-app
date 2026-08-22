@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { canOperateAsCustomer } from '../../../lib/authorization.ts';
 import type { AuthorizationSubject } from '../../../types/identity.ts';
 import { prisma } from '../../db/client.ts';
+import { serializableTransactionOptions } from '../../db/transaction-options.ts';
 
 export type CreatePaymentAttemptInput = {
   actor: AuthorizationSubject;
@@ -123,7 +124,7 @@ async function createOnce(input: CreatePaymentAttemptInput, client: PrismaClient
       select: attemptSelect,
     });
     return { status: 'CREATED', attempt };
-  }, { isolationLevel: 'Serializable', maxWait: 30_000, timeout: 30_000 });
+  }, serializableTransactionOptions());
 }
 
 export async function createPaymentAttempt(input: CreatePaymentAttemptInput, client: PrismaClient = prisma): Promise<CreatePaymentAttemptResult> {
