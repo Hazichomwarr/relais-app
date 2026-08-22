@@ -131,6 +131,17 @@ enum QuickRefundPolicyVersion {
   QUICK_V1
 }
 
+enum RefundExecutionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum RefundConfirmationSource {
+  MANUAL
+  PROVIDER
+}
+
 model User {
   id                          String                 @id @default(cuid())
   // Nullable for pre-phone legacy users; new Customer provisioning always sets both fields.
@@ -156,6 +167,8 @@ model User {
   proposedCompletionAttempts  CompletionAttempt[]    @relation("CompletionProposalAuthor")
   respondedCompletionAttempts CompletionAttempt[]    @relation("CompletionResponseAuthor")
   cancelledMissions           MissionCancellation[]
+  initiatedRefundExecutions   RefundExecution[]      @relation("RefundExecutionInitiator")
+  confirmedRefundExecutions   RefundExecution[]      @relation("RefundExecutionConfirmer")
 
   @@index([role])
   @@index([accountStatus])
@@ -461,6 +474,36 @@ model RefundEntitlement {
   mission               Mission                      @relation(fields: [missionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   paymentObligation     PaymentObligation            @relation(fields: [paymentObligationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cancellation          MissionCancellation          @relation(fields: [cancellationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  executions            RefundExecution[]
 
   @@index([reason, createdAt])
+}
+
+model RefundExecution {
+  id                     String                    @id @default(cuid())
+  refundEntitlementId    String
+  amount                 Int
+  currency               String                    @db.VarChar(3)
+  method                 PaymentMethod
+  provider               String                    @db.VarChar(64)
+  status                 RefundExecutionStatus     @default(PENDING)
+  externalReference      String?                   @db.VarChar(128)
+  clientRefundId         String                    @db.VarChar(128)
+  destinationPhoneNumber String                    @db.VarChar(20)
+  initiatedByUserId      String
+  confirmedByUserId      String?
+  confirmationSource     RefundConfirmationSource?
+  initiatedAt            DateTime                  @default(now())
+  confirmedAt            DateTime?
+  failedAt               DateTime?
+  failureReason          String?                   @db.Text
+  refundEntitlement      RefundEntitlement         @relation(fields: [refundEntitlementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  initiatedBy            User                      @relation("RefundExecutionInitiator", fields: [initiatedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  confirmedBy            User?                     @relation("RefundExecutionConfirmer", fields: [confirmedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([refundEntitlementId, clientRefundId])
+  @@index([refundEntitlementId, initiatedAt, id])
+  @@index([status, initiatedAt])
+  @@index([initiatedByUserId, initiatedAt])
+  @@index([confirmedByUserId, confirmedAt])
 }
