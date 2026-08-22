@@ -9,6 +9,7 @@ export type ConversationAuthorizationContext = {
   lifecycle: 'MATCHING' | 'CONNECTED' | 'ENDED';
   terminalOutcome: string | null;
   missionId: string | null;
+  missionLifecycle: 'PENDING_EXECUTION' | 'ACTIVE' | 'COMPLETION_PENDING' | 'COMPLETED' | 'CANCELLED' | 'FAILED' | null;
 };
 
 export type ConversationAuthorizationErrorCode =
@@ -32,6 +33,7 @@ export async function authorizeConversationParticipant(
   transaction: Prisma.TransactionClient,
   actor: AuthorizationSubject,
   conversationId: string,
+  options: { mode?: 'read' | 'write' } = {},
 ): Promise<ConversationAuthorizationContext> {
   const rows = await transaction.$queryRaw<LockedConversation[]>`
     SELECT
@@ -40,7 +42,8 @@ export async function authorizeConversationParticipant(
       connection."customerId",
       connection."lifecycle",
       connection."terminalOutcome",
-      mission."id" AS "missionId"
+      mission."id" AS "missionId",
+      mission."lifecycle" AS "missionLifecycle"
     FROM "Conversation" conversation
     INNER JOIN "Connection" connection ON connection."id" = conversation."connectionId"
     LEFT JOIN "Mission" mission ON mission."connectionId" = connection."id"
@@ -59,11 +62,16 @@ export async function authorizeConversationParticipant(
     conversation.lifecycle === 'ENDED' &&
     conversation.terminalOutcome === 'MISSION_CREATED' &&
     Boolean(conversation.missionId);
+  const mode = options.mode ?? 'write';
+  const completedMissionRead = missionConversation && conversation.missionLifecycle === 'COMPLETED';
   if (conversation.lifecycle !== 'CONNECTED' && !missionConversation) {
     throw new ConversationAuthorizationError(
       'CONNECTION_NOT_CONNECTED',
       'Conversation access is not available for this Connection state.',
     );
+  }
+  if (mode === 'write' && completedMissionRead) {
+    throw new ConversationAuthorizationError('CONNECTION_NOT_CONNECTED', 'Operational Conversation writes are closed after Mission completion.');
   }
 
   const customerAuthorization = canOperateAsCustomer(actor);

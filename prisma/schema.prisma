@@ -116,6 +116,12 @@ enum MissionUpdateType {
   NOTE
 }
 
+enum CompletionAttemptStatus {
+  PENDING
+  CONFIRMED
+  DISPUTED
+}
+
 model User {
   id                          String                 @id @default(cuid())
   // Nullable for pre-phone legacy users; new Customer provisioning always sets both fields.
@@ -138,6 +144,8 @@ model User {
   initiatedMissionAssignments MissionAssignment[]    @relation("MissionAssignmentInitiator")
   authoredMissionUpdates      MissionUpdate[]        @relation("MissionUpdateAuthor")
   confirmedPaymentAttempts    PaymentAttempt[]       @relation("PaymentConfirmationActor")
+  proposedCompletionAttempts  CompletionAttempt[]    @relation("CompletionProposalAuthor")
+  respondedCompletionAttempts CompletionAttempt[]    @relation("CompletionResponseAuthor")
 
   @@index([role])
   @@index([accountStatus])
@@ -312,6 +320,7 @@ model Mission {
   assignments          MissionAssignment[]
   paymentObligations   PaymentObligation[]
   updates              MissionUpdate[]
+  completionAttempts   CompletionAttempt[]
 }
 
 model MissionAssignment {
@@ -389,4 +398,24 @@ model MissionUpdate {
   @@unique([missionId, authorUserId, clientUpdateId])
   @@index([missionId, createdAt, id])
   @@index([authorUserId, createdAt])
+}
+
+model CompletionAttempt {
+  id                 String                  @id @default(cuid())
+  missionId          String
+  proposedByUserId   String
+  summary            String                  @db.Text
+  status             CompletionAttemptStatus @default(PENDING)
+  clientCompletionId String                  @db.VarChar(128)
+  proposedAt         DateTime                @default(now())
+  respondedAt        DateTime?
+  responseByUserId   String?
+  problemNote        String?                 @db.Text
+  mission            Mission                 @relation(fields: [missionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  proposedByUser     User                    @relation("CompletionProposalAuthor", fields: [proposedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  responseByUser     User?                   @relation("CompletionResponseAuthor", fields: [responseByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([missionId, proposedByUserId, clientCompletionId])
+  @@index([missionId, proposedAt, id])
+  @@index([status, missionId])
 }

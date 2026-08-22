@@ -42,7 +42,7 @@ export async function getVoiceMessagePlayback(
 ): Promise<GetVoiceMessagePlaybackResult> {
   try {
     const result = await client.$transaction(async (transaction) => {
-      const context = await authorizeVoiceConversation(transaction, input.actor, input.conversationId);
+      const context = await authorizeVoiceConversation(transaction, input.actor, input.conversationId, { mode: 'read' });
       const message = await transaction.message.findFirst({
         where: { id: input.messageId, conversationId: context.conversationId, type: 'VOICE' },
         include: { voiceAsset: true },

@@ -78,6 +78,7 @@ export async function listConversationMessages(
         transaction,
         input.actor,
         input.conversationId,
+        { mode: 'read' },
       );
 
     const anchor = input.cursor
