@@ -142,6 +142,11 @@ enum RefundConfirmationSource {
   PROVIDER
 }
 
+enum MissionFeedbackDirection {
+  CUSTOMER_TO_RELAIS
+  RELAIS_TO_CUSTOMER
+}
+
 model User {
   id                          String                 @id @default(cuid())
   // Nullable for pre-phone legacy users; new Customer provisioning always sets both fields.
@@ -169,6 +174,8 @@ model User {
   cancelledMissions           MissionCancellation[]
   initiatedRefundExecutions   RefundExecution[]      @relation("RefundExecutionInitiator")
   confirmedRefundExecutions   RefundExecution[]      @relation("RefundExecutionConfirmer")
+  authoredMissionFeedback     MissionFeedback[]      @relation("MissionFeedbackAuthor")
+  receivedMissionFeedback     MissionFeedback[]      @relation("MissionFeedbackSubject")
 
   @@index([role])
   @@index([accountStatus])
@@ -346,6 +353,7 @@ model Mission {
   completionAttempts   CompletionAttempt[]
   cancellation         MissionCancellation?
   refundEntitlement    RefundEntitlement?
+  feedback             MissionFeedback[]
 }
 
 model MissionAssignment {
@@ -506,4 +514,25 @@ model RefundExecution {
   @@index([status, initiatedAt])
   @@index([initiatedByUserId, initiatedAt])
   @@index([confirmedByUserId, confirmedAt])
+}
+
+model MissionFeedback {
+  id               String                   @id @default(cuid())
+  missionId        String
+  authorUserId     String
+  subjectUserId    String
+  direction        MissionFeedbackDirection
+  rating           Int
+  comment          String?                  @db.Text
+  clientFeedbackId String                   @db.VarChar(128)
+  createdAt        DateTime                 @default(now())
+  mission          Mission                  @relation(fields: [missionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  author           User                     @relation("MissionFeedbackAuthor", fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  subject          User                     @relation("MissionFeedbackSubject", fields: [subjectUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([missionId, direction])
+  @@unique([missionId, authorUserId, clientFeedbackId])
+  @@index([authorUserId, createdAt])
+  @@index([subjectUserId, createdAt])
+  @@index([missionId, createdAt, id])
 }
